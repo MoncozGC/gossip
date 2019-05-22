@@ -10,7 +10,6 @@ import org.apache.solr.client.solrj.impl.CloudSolrServer;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
-import org.apache.solr.common.params.SolrParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
@@ -36,21 +35,22 @@ public class SolrIndexSearcher implements IndexSearcher {
 
         List<News> newsList = new ArrayList<>();
 
-        //封装条件  基础查询  参与打分
+        //1. 封装条件  基础查询  参与打分
         //SolrQuery solrQuery = new SolrQuery("text:" + keywords);
         SolrQuery solrQuery = new SolrQuery("text:" + resultBean.getKeywords());
 
-        //过滤查询 不参与打分 在基础查询的基础上进行过滤  也就是如果基础查询查了1000条数据 过虑在这1000条中去查 而简单查询可能是在100000条数据中找到的1000条数据
+        //2. 过滤查询 不参与打分 在基础查询的基础上进行过滤  也就是如果基础查询查了1000条数据 过虑在这1000条中去查 而简单查询可能是在100000条数据中找到的1000条数据
         //判断source中是否有数据, 不为空才进行过滤查询  isEmpty是为空的意思
         if (!StringUtils.isEmpty(resultBean.getSource())) {
             solrQuery.addFilterQuery("source :" + resultBean.getSource());
         }
-
+        //editor过滤
         if (!StringUtils.isEmpty(resultBean.getEditor())) {
             solrQuery.addFilterQuery("editor:" + resultBean.getEditor());
         }
 
-        //时间解析
+
+        //3. 时间解析
         String startDate = resultBean.getStartDate();
         String endDate = resultBean.getEndDate();
         //判断是否进行了时间查询的过滤查询, 如果有则进入
@@ -67,9 +67,25 @@ public class SolrIndexSearcher implements IndexSearcher {
             solrQuery.addFilterQuery("time:[" + startDate + " TO " + endDate + "]");
 
         }
+        //排序 根据时间进行降序  排序之后，打分就失效了  nan
+        solrQuery.setSort(new SolrQuery.SortClause("time", SolrQuery.ORDER.desc));
 
+        //4. 分页查询
+        Integer page = resultBean.getPageBean().getPage();
+        Integer pageSize = resultBean.getPageBean().getPageSize();
+        //没有设置当前页码
+        if (page == null) {
+            page = 1;
+        }
+        //没有设置显示条数
+        if (pageSize == null) {
+            pageSize = 15;
+        }
+        //设置
+        solrQuery.setStart((page - 1) * pageSize);
+        solrQuery.setRows(pageSize);
 
-        //开启高亮
+        //5. 开启高亮
         solrQuery.setHighlight(true);
         //添加高亮字段
         solrQuery.addHighlightField("title");
@@ -88,7 +104,7 @@ public class SolrIndexSearcher implements IndexSearcher {
 
         //不是高亮的部分   getBeans无法将数据封装过去, 因为时间类型是字符串,
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        //遍历数据, 保存到List<News>中
+        //6. 遍历数据, 保存到List<News>中
         for (SolrDocument solrDocument : documentList) {
             String id = (String) solrDocument.get("id");
             String title = (String) solrDocument.get("title");
@@ -117,7 +133,12 @@ public class SolrIndexSearcher implements IndexSearcher {
             }
             //如果content内容过长，可以切割之后再发送给前端，前端不需要展示特别多的内容
             if (content.length() > 200) {
-                content = content.substring(0, 197) + "...";
+                /**
+                 *设置高亮后, 因为内容长度的关系可能会切割有问题
+                 * <font style='color:red'>幂...   会切成这样, 所以编辑和来源两个参数也会高亮
+                 * 在... 后面拼接一个</font>  直接关闭元素
+                 */
+                content = content.substring(0, 197) + "...</font>";
             }
 
             //time在solr中是一个Date类型, 但是在News中是一个字符串类型
@@ -149,6 +170,14 @@ public class SolrIndexSearcher implements IndexSearcher {
         resultBean.getPageBean().setNewsList(newsList);
 
         //return newsList;
+
+        //总记录数
+        long pageCount = documentList.getNumFound();
+        resultBean.getPageBean().setPageCount((int) pageCount);
+        //总页数   ceil向上取整  floor向上取整
+        double pageNum = Math.ceil(pageCount / pageSize);
+        resultBean.getPageBean().setPageNum((int) pageNum);
+
         return resultBean;
     }
 }
