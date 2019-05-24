@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+    <!-- 包扫描 -->
+    <context:component-scan base-package="com.JadePenG.kafka.producer"/>
+    <!-- 加载属性文件 -->
+    <context:property-placeholder location="classpath:init.properties"/>
+
+    <!-- 定义producer的参数信息 -->
+    <bean id="producerProperties" class="java.util.HashMap">
+        <constructor-arg>
+            <map>
+                <entry key="bootstrap.servers" value="${kafka.servers}"/>
+                <entry key="retries" value="10"/>
+                <entry key="batch.size" value="16384"/>
+                <entry key="linger.ms" value="1"/>
+                <entry key="buffer.memory" value="33554432"/>
+                <entry key="key.serializer" value="org.apache.kafka.common.serialization.IntegerSerializer"/>
+                <entry key="value.serializer" value="org.apache.kafka.common.serialization.StringSerializer"/>
+            </map>
+        </constructor-arg>
+    </bean>
+
+    <!-- 创建kafkaTemplate需要使用的producerFactory bean
+        根据工厂创建生产者
+    -->
+    <bean id="producerFactory" class="org.springframework.kafka.core.DefaultKafkaProducerFactory">
+        <constructor-arg>
+            <ref bean="producerProperties"/>
+        </constructor-arg>
+    </bean>
+
+    <!-- 创建kafkaTemplate bean，使用的时候，只需要注入这个bean，即可使用template的send消息方法
+        创建生产者
+    -->
+    <bean id="KafkaTemplate" class="org.springframework.kafka.core.KafkaTemplate">
+        <constructor-arg ref="producerFactory"/>
+        <!--value="true" 自动刷新-->
+        <constructor-arg name="autoFlush" value="true"/>
+        <!--默认topic init.properties属性中配置kafka.topic-->
+        <property name="defaultTopic" value="${kafka.topic}"/>
+    </bean>
+</beans>

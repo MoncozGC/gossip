@@ -39,6 +39,8 @@ public class PublicDaoNode {
             }
             jedis.close();
 
+            // 将数据发送到kafka的生产者  增量更新  全量更新
+            newsProducer.sendNewsToKafka(newsJsonString);
             newsDao.saveNews(news);
 
             jedis = new Jedis("192.168.190.100",6379);

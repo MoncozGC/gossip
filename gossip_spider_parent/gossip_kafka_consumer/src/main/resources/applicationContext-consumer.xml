@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+    <!-- 包扫描 -->
+    <context:component-scan base-package="com.JadePenG.kafka.consumer"/>
+    <!-- 加载属性文件 -->
+    <context:property-placeholder location="classpath:init.properties" />
+    <!-- 定义consumer的参数
+        创建消费者的配置信息
+     -->
+    <bean id="consumerProperties" class="java.util.HashMap">
+        <constructor-arg>
+            <map>
+                <!--kafka集群-->
+                <entry key="bootstrap.servers" value="${kafka.servers}"/>
+                <!--组的名称-->
+                <entry key="group.id" value="0"/>
+                <!--更新偏移量的频率-->
+                <entry key="enable.auto.commit" value="true"/>
+                <entry key="auto.commit.interval.ms" value="1000"/>
+                <!--连接kafka的超时时间-->
+                <entry key="session.timeout.ms" value="15000"/>
+                <!--Int反序列化-->
+                <entry key="key.deserializer" value="org.apache.kafka.common.serialization.IntegerDeserializer"/>
+                <!--String反序列化-->
+                <entry key="value.deserializer" value="org.apache.kafka.common.serialization.StringDeserializer"/>
+            </map>
+        </constructor-arg>
+    </bean>
+
+    <!-- 创建consumerFactory bean
+        消费者工厂
+    -->
+    <bean id="consumerFactory" class="org.springframework.kafka.core.DefaultKafkaConsumerFactory">
+        <constructor-arg>
+            <ref bean="consumerProperties"/>
+        </constructor-arg>
+    </bean>
+
+    <!-- 消费者容器配置信息
+        容器配置对象
+    -->
+    <bean id="containerProperties" class="org.springframework.kafka.listener.config.ContainerProperties">
+        <!--监听的topic-->
+        <constructor-arg value="${kafka.topic}"/>
+        <!-- 真正执行消费数据逻辑的消息监听者
+            监听器对象可以理解为消费者  监听端口消费消息
+        -->
+        <property name="messageListener" ref="spiderKafkaConsumer"/>
+    </bean>
+
+    <!--消息监听容器(消费者工厂, 容器配置对象)-->
+    <bean id="messageListenerContainer" class="org.springframework.kafka.listener.KafkaMessageListenerContainer" init-method="doStart">
+        <!--消费者工厂-->
+        <constructor-arg ref="consumerFactory"/>
+        <!--容器配置对象-->
+        <constructor-arg ref="containerProperties"/>
+    </bean>
+</beans>
